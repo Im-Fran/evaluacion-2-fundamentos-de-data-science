@@ -1,12 +1,14 @@
-from loader import descargar_datasets
-from loader import cargar_df_mp2_5
+from loader import descargar_mp25, descargar_humedad_relativa
+from loader import prepara_df
+import numpy as np
 
 def main():
-    descargar_datasets() # Descarga los datasets necesarios para el trabajo
+    descargar_mp25() # Descarga los datasets necesarios para el trabajo
+    descargar_humedad_relativa()
 
-    df = cargar_df_mp2_5()  # Carga el DF de las mediciones de MP2.5
-    print(df)
-
+    df = prepara_df()
+    df["Calidad_Aire"] = np.where(df["MP2.5"] < 25, "Buena", "Mala")
+    print(df.head())
 
 if __name__ == '__main__':
     main()

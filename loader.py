@@ -1,14 +1,15 @@
 import requests
 import pandas as pd
-from config import mp2_5_dataset_file
+import numpy as np
+from config import archivo_dataset_mp25, archivo_humedad_relativa, archivo_temperatura
 
-def descargar_datasets():
+def descargar_mp25():
     print('Descargando mediciones MP2.5 21-10-2022 > 21-10-2025')
     # Verificar si el archivo ya existe y tiene contenido
-    if mp2_5_dataset_file.exists() and mp2_5_dataset_file.stat().st_size > 0:
-        print(f"El archivo ya existe y no está vacío: {mp2_5_dataset_file}")
+    if archivo_dataset_mp25.exists() and archivo_dataset_mp25.stat().st_size > 0:
+        print(f"El archivo ya existe y no está vacío: {archivo_dataset_mp25}")
         print("Omitiendo descarga.")
-        return mp2_5_dataset_file
+        return archivo_dataset_mp25
 
     # Descripción columnas:
     # C1 - Fecha
@@ -30,26 +31,25 @@ def descargar_datasets():
     response.raise_for_status()
 
     # Guardar el archivo a medida que se descarga
-    with open(mp2_5_dataset_file, "wb") as f:
+    with open(archivo_dataset_mp25, "wb") as f:
         for chunk in response.iter_content(chunk_size=8192):
             if chunk:
                 f.write(chunk)
 
-    print(f"Descarga completa: {mp2_5_dataset_file}")
+    print(f"Descarga completa: {archivo_dataset_mp25}")
     return None
 
-
-def cargar_df_mp2_5():
+def cargar_mp25():
     """
     Genera un DataFrame del dataset de MP2.5,
     Si el archivo no existe o está vacío, lo descarga.
     """
-    if not (mp2_5_dataset_file.exists() and mp2_5_dataset_file.stat().st_size > 0):
-        descargar_datasets()
+    if not (archivo_dataset_mp25.exists() and archivo_dataset_mp25.stat().st_size > 0):
+        descargar_mp25()
 
     columnas = ["Fecha","Hora","Registros_Validados","Registros_Preliminares","Registros_No_Validados","Desconocido"]
     df = pd.read_csv(
-        mp2_5_dataset_file,
+        archivo_dataset_mp25,
         sep=";",          # separador correcto
         header=None,      # ignorar encabezados del archivo
         skiprows=1,       # saltar la primera fila (encabezado incompleto)
@@ -61,6 +61,74 @@ def cargar_df_mp2_5():
     df = df.drop(columns=["Hora"], errors="ignore") # Elimina la columna Hora ya que siempre es 0000
     df = df.dropna(how="all") # Limpiar espacios o valores nulos
     df["Fecha"] = pd.to_datetime(df["Fecha"], format="%y%m%d", errors="coerce")
-    for col in ["Registros_Validados","Registros_Preliminares","Registros_No_Validados"]:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df["Registros_Validados"] = pd.to_numeric(df["Registros_Validados"], errors="coerce")
+    df["Registros_Preliminares"] = pd.to_numeric(df["Registros_Preliminares"], errors="coerce")
+    df["MP2.5"] = df["Registros_Validados"].combine_first(df["Registros_Preliminares"])
+    df = df.drop(columns=["Registros_Validados", "Registros_Preliminares", "Registros_No_Validados"], errors="ignore")
+    df["MP2.5"] = pd.to_numeric(df["MP2.5"], errors="coerce")
+
+    return df
+
+def descargar_humedad_relativa():
+    print("Descargando humedad relativa 21-10-2022 > 21-10-2025")
+    if archivo_humedad_relativa.exists() and archivo_humedad_relativa.stat().st_size > 0:
+        print(f"El archivo {archivo_humedad_relativa} ya existe")
+        return archivo_humedad_relativa
+
+    url = "https://sinca.mma.gob.cl/cgi-bin/APUB-MMA/apub.tsindico2.cgi?outtype=xcl&macro=./RM/D14/Met/RHUM//horario_003.ic&from=221021&to=251021&path=/usr/airviro/data/CONAMA/&lang=esp&rsrc=&macropath="
+    response = requests.get(url)
+    with open(archivo_humedad_relativa, "w") as archivo:
+        archivo.write(response.text)
+
+    print(f"Descarga completa: {archivo_humedad_relativa}")
+    return archivo_humedad_relativa
+
+def cargar_humedad_relativa():
+    if not(archivo_humedad_relativa.exists() and archivo_humedad_relativa.stat().st_size > 0):
+        descargar_humedad_relativa()
+
+    columnas = ["Fecha", "Hora", "Humedad_Relativa", "Desconocido"]
+    df = pd.read_csv(archivo_humedad_relativa, sep=";", header=None, skiprows=1, names=columnas, dtype=str)
+    df = df[df["Hora"] == "0100"]
+    df["Fecha"] = pd.to_datetime(df["Fecha"], format="%y%m%d", errors="coerce")
+    df["Humedad_Relativa"] = pd.to_numeric(df["Humedad_Relativa"].str.replace(",", "."), errors="coerce")
+    df["Humedad_Relativa"] = np.ceil(df["Humedad_Relativa"])
+    df = df.drop(columns=["Hora", "Desconocido"], errors="ignore")
+
+    return df
+
+def descargar_temperatura():
+    print("Descargando temperatura 21-10-2022 > 21-10-2025")
+    if archivo_temperatura.exists() and archivo_temperatura.stat().st_size > 0:
+        print(f"El archivo {archivo_temperatura} ya existe")
+        return archivo_temperatura
+
+    url = "https://sinca.mma.gob.cl/cgi-bin/APUB-MMA/apub.tsindico2.cgi?outtype=xcl&macro=./RM/D14/Met/TEMP//horario_003.ic&from=221021&to=251021&path=/usr/airviro/data/CONAMA/&lang=esp&rsrc=&macropath="
+    response = requests.get(url)
+    with open(archivo_temperatura, "w") as archivo:
+        archivo.write(response.text)
+
+    print(f"Descarga completa: {archivo_temperatura}")
+    return archivo_temperatura
+
+def cargar_temperatura():
+    if not(archivo_temperatura.exists() and archivo_temperatura.stat().st_size > 0):
+        descargar_temperatura()
+
+    columnas = ["Fecha", "Hora", "Temperatura", "Desconocido"]
+    df = pd.read_csv(archivo_humedad_relativa, sep=";", header=None, skiprows=1, names=columnas, dtype=str)
+    df = df[df["Hora"] == "0100"]
+    df["Fecha"] = pd.to_datetime(df["Fecha"], format="%y%m%d", errors="coerce")
+    df["Temperatura"] = pd.to_numeric(df["Temperatura"].str.replace(",", "."), errors="coerce")
+    df["Temperatura"] = np.ceil(df["Temperatura"])
+    df = df.drop(columns=["Hora", "Desconocido"], errors="ignore")
+    return df
+
+def prepara_df():
+    df_mp25 = cargar_mp25()
+    df_humedad_relativa = cargar_humedad_relativa()
+    df_temperatura = cargar_temperatura()
+
+    df = pd.merge(df_mp25, df_humedad_relativa, on="Fecha", how="inner")
+    df = pd.merge(df, df_temperatura, on="Fecha", how="inner")
     return df
