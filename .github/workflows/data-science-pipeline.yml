@@ -1,0 +1,62 @@
+name: Data Science Pipeline - Análisis de Calidad del Aire
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+jobs:
+  run-analysis:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run data science analysis
+        run: |
+          python main.py
+
+      - name: Upload output artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: analysis-results
+          path: |
+            out/
+            datasets/
+          retention-days: 30
+
+      - name: Generate summary
+        if: always()
+        run: |
+          echo "## 📊 Data Science Pipeline Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Generated Files" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -d "out" ]; then
+            echo "**Output Directory (out/):**" >> $GITHUB_STEP_SUMMARY
+            ls -lh out/ | awk 'NR>1 {print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ -d "datasets" ]; then
+            echo "**Datasets Directory (datasets/):**" >> $GITHUB_STEP_SUMMARY
+            ls -lh datasets/ | awk 'NR>1 {print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "### Execution Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Python Version:** $(python --version)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
