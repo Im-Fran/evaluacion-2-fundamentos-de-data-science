@@ -86,14 +86,14 @@ def main():
     plt.xlabel('PM2.5 Real (µg/m³)', fontsize=11, fontweight='bold')
     plt.ylabel('PM2.5 Predicho (µg/m³)', fontsize=11, fontweight='bold')
     plt.title('Regresión Lineal: Predicciones vs. Valores Reales\n(Conjunto de Test)', 
-              fontsize=12, fontweight='bold', pad=15)
+    fontsize=12, fontweight='bold', pad=15)
     plt.legend(fontsize=10)
     plt.grid(True, alpha=0.3, linestyle='--')
     
     # Agregar información de rendimiento
     textstr = f'MAE: {mae_test:.2f} µg/m³\nR²: {r2_test:.3f}\nn_muestras: {len(y_test_reg)}'
     plt.text(0.05, 0.95, textstr, transform=plt.gca().transAxes, fontsize=10,
-            verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+    verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
     
     plt.tight_layout()
     plt.savefig(f"{out_dir}/regresion_pred_vs_real.png", dpi=150, bbox_inches='tight')
@@ -246,7 +246,7 @@ def main():
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 11))
     fig.suptitle('Comparación de Rendimiento: Regresión Logística vs K-NN\n(Clasificación de Calidad del Aire - Conjunto de Test)', 
-                 fontsize=14, fontweight='bold', y=0.995)
+    fontsize=14, fontweight='bold', y=0.995)
 
     # Accuracy
     bars1 = axes[0, 0].bar(modelos, accuracies, color=['#3498db', '#e74c3c'], alpha=0.7, edgecolor='black', linewidth=1.5)
@@ -289,8 +289,7 @@ def main():
     axes[1, 1].set_facecolor('#f8f9fa')
 
     # Agregar leyenda global
-    fig.text(0.99, 0.01, 'Nota: Los valores más altos indican mejor rendimiento del modelo', 
-             ha='right', va='bottom', fontsize=9, style='italic', color='gray')
+    fig.text(0.99, 0.01, 'Nota: Los valores más altos indican mejor rendimiento del modelo',ha='right', va='bottom', fontsize=9, style='italic', color='gray')
 
     plt.tight_layout()
     plt.savefig(f"{out_dir}/clasificacion_comparacion_modelos.png", dpi=150, bbox_inches='tight')
@@ -301,7 +300,7 @@ def main():
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
     
     fig.suptitle('Matrices de Confusión: Predicciones de Calidad del Aire\n(Conjunto de Test)', 
-                 fontsize=14, fontweight='bold', y=1.02)
+    fontsize=14, fontweight='bold', y=1.02)
 
     # Matriz de confusión - Regresión Logística
     sns.heatmap(cm_logistic, annot=True, fmt='d', cmap='Blues', ax=axes[0], cbar=True, 
@@ -333,12 +332,11 @@ def main():
     fn_knn, tp_knn = cm_knn[1]
     textstr_knn = f'VP: {tp_knn} | FP: {fp_knn}\nFN: {fn_knn} | VN: {tn_knn}'
     axes[1].text(1.0, -0.35, textstr_knn, transform=axes[1].transAxes, fontsize=9,
-                verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+    verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
     # Agregar leyenda general
     fig.text(0.5, -0.05, 'VP: Verdadero Positivo (detectó correctamente calidad mala) | FP: Falso Positivo (predijo mala cuando era buena)\n' +
-                         'FN: Falso Negativo (no detectó calidad mala) | VN: Verdadero Negativo (predijo correctamente calidad buena)',
-             ha='center', fontsize=9, style='italic', wrap=True)
+    'FN: Falso Negativo (no detectó calidad mala) | VN: Verdadero Negativo (predijo correctamente calidad buena)',ha='center', fontsize=9, style='italic', wrap=True)
 
     plt.tight_layout()
     plt.savefig(f"{out_dir}/clasificacion_matrices_confusion.png", dpi=150, bbox_inches='tight')
@@ -347,6 +345,57 @@ def main():
     print("\n" + "="*60)
     print("Gráficos guardados en la carpeta 'out/'")
     print("="*60)
+
+    # --- RANDOM FOREST ---
+    print("\n" + "=" * 60)
+    print("CLASIFICACIÓN: RANDOM FOREST")
+    print("=" * 60)
+
+    from sklearn.ensemble import RandomForestClassifier                                                        
+    model_rf = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=SEED)
+    rf_pipeline = Pipeline(steps=[("prep", preprocessor_clf), ("model", model_rf)])
+
+    # Validación cruzada
+    cv = KFold(n_splits=5, shuffle=True, random_state=SEED)
+    scoring_clf = {"accuracy": "accuracy", "precision": "precision", "recall": "recall", "f1": "f1"}
+    cv_results = cross_validate(rf_pipeline, X_train_clf, y_train_clf_encoded, cv=cv, scoring=scoring_clf,   
+    return_train_score=False)
+
+    print("\nRandom Forest (CV en train, 5-fold):")
+    print(f"Accuracy:  {cv_results['test_accuracy'].mean():.3f} ± {cv_results['test_accuracy'].std():.3f}")
+    print(f"Precision: {cv_results['test_precision'].mean():.3f} ± {cv_results['test_precision'].std():.3f}")
+    print(f"Recall:    {cv_results['test_recall'].mean():.3f} ± {cv_results['test_recall'].std():.3f}")
+    print(f"F1-Score:  {cv_results['test_f1'].mean():.3f} ± {cv_results['test_f1'].std():.3f}")
+
+    # Entrenamiento y evaluación en test
+    rf_pipeline.fit(X_train_clf, y_train_clf_encoded)                                                              
+    y_pred = rf_pipeline.predict(X_test_clf)                                            
+    acc = accuracy_score(y_test_clf_encoded, y_pred)                                                             
+    precision = precision_score(y_test_clf_encoded, y_pred, zero_division=0)
+    recall = recall_score(y_test_clf_encoded, y_pred, zero_division=0)
+    f1 = f1_score(y_test_clf_encoded, y_pred, zero_division=0)
+    cm = confusion_matrix(y_test_clf_encoded, y_pred)
+
+    print("\nRandom Forest - Evaluación en TEST:")
+    print(f"Accuracy:  {acc:.3f}")
+    print(f"Precision: {precision:.3f}")
+    print(f"Recall:    {recall:.3f}")
+    print(f"F1-Score:  {f1:.3f}")
+    print("\nMatriz de Confusión:")
+    print(cm)
+
+    # Gráfico de importancia de variables
+    importances = rf_pipeline['model'].feature_importances_
+    sorted_idx = importances.argsort()
+
+    plt.figure(figsize=(10, 6))
+    plt.barh(np.array(columnas)[sorted_idx], importances[sorted_idx], color='#2ecc71')
+    plt.xlabel("Importancia de la Característica (Gini)", fontsize=11, fontweight='bold')
+    plt.ylabel("Característica", fontsize=11, fontweight='bold')
+    plt.title("Importancia de Variables - Random Forest", fontsize=12, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig(f"{out_dir}/rf_importancia_caracteristicas.png", dpi=150, bbox_inches='tight')
+    plt.close()
 
 if __name__ == '__main__':
     main()
